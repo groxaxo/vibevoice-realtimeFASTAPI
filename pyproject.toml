@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "vibevoice-runner"
 version = "0.1.0"
-description = "A local runner for the VibeVoice Realtime text-to-speech demo (Ubuntu/CUDA, macOS)"
+description = "Local runner for Microsoft VibeVoice Realtime TTS - Fully compatible with Open-WebUI - Plug and Play. Run enterprise-grade text-to-speech locally with privacy-first uv package management."
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 dependencies = [
