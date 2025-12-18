@@ -1,230 +1,145 @@
-# Podcast Creator - VibeVoice Realtime Local Runner
+# 🎙️ VibeVoice Realtime Runner
 
-A local runner for the [VibeVoice Realtime](https://github.com/microsoft/VibeVoice) text-to-speech demo, adapted from the [Colab notebook](https://colab.research.google.com/github/microsoft/VibeVoice/blob/main/demo/vibevoice_realtime_colab.ipynb).
+<div align="center">
 
-This project uses `uv` for Python environment and package management.
+![VibeVoice](https://img.shields.io/badge/VibeVoice-Realtime-blue?style=for-the-badge)
+![Python](https://img.shields.io/badge/Python-3.11-yellow?style=for-the-badge&logo=python)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.109-green?style=for-the-badge&logo=fastapi)
+![OpenAI API](https://img.shields.io/badge/OpenAI_API-Compatible-orange?style=for-the-badge&logo=openai)
 
-## Prerequisites
+**A high-performance local runner for Microsoft's VibeVoice Realtime text-to-speech model.**
+*Now with OpenAI-compatible API endpoints!*
 
-- **Ubuntu** (tested with CUDA GPU support) or **macOS** (tested on Apple Silicon)
+[Features](#features) • [Quick Start](#quick-start) • [API Documentation](#api-documentation) • [Credits](#credits)
+
+</div>
+
+---
+
+## 🚀 Features
+
+- **Local & Private**: Runs entirely on your machine (CUDA/MPS/CPU).
+- **Realtime Streaming**: Low-latency text-to-speech generation.
+- **OpenAI API Compatible**: Drop-in replacement for OpenAI's TTS API.
+- **Web Interface**: Built-in interactive demo UI.
+- **Multi-Platform**: Optimized for Ubuntu (CUDA) and macOS (Apple Silicon).
+- **Easy Setup**: Powered by `uv` for fast, reliable dependency management.
+
+## ⚡ Quick Start
+
+### Prerequisites
+
 - **uv** installed: `curl -LsSf https://astral.sh/uv/install.sh | sh`
-- **Python 3.11** (will be installed automatically by uv if needed)
-- **Git** (for cloning VibeVoice repository)
-- **Hugging Face account** (for downloading the model; may require authentication)
-- **For Ubuntu with NVIDIA GPU**: CUDA-compatible PyTorch installation (see [PyTorch CUDA setup](#pytorch-cuda-setup))
+- **Git**
+- **Hugging Face Account** (for model download)
 
-## Quick Start
+### Installation
 
-### 1. Bootstrap the environment
+1.  **Bootstrap the environment**:
+    ```bash
+    ./scripts/bootstrap_uv.sh
+    ```
 
-This will:
+2.  **Download the model**:
+    ```bash
+    uv run python scripts/download_model.py
+    ```
 
-- Create a Python 3.11 virtual environment
-- Install project dependencies
-- Clone VibeVoice into `third_party/VibeVoice`
-- Install VibeVoice as an editable package
+3.  **Run the server**:
+    ```bash
+    uv run python scripts/run_realtime_demo.py --port 8000
+    ```
 
-```bash
-./scripts/bootstrap_uv.sh
-```
+    - **Web UI**: Open [http://127.0.0.1:8000](http://127.0.0.1:8000)
+    - **API**: `http://127.0.0.1:8000/v1/audio/speech`
 
-### 2. Download the model
+## 📖 API Documentation
 
-Download the VibeVoice-Realtime-0.5B model from Hugging Face:
+This runner provides OpenAI-compatible endpoints for easy integration with existing tools and libraries.
 
-```bash
-uv run python scripts/download_model.py
-```
+### 🗣️ Speech Generation
 
-**Note:** If the model is gated, you'll need to authenticate:
+**Endpoint**: `POST /v1/audio/speech`
 
-- Run `huggingface-cli login` (or `uv run huggingface-cli login`), or
-- Set the `HF_TOKEN` environment variable
-
-The model will be downloaded to `models/VibeVoice-Realtime-0.5B/` (about ~2GB).
-
-### 3. Run the demo
-
-Start the realtime demo server:
+Generates audio from text.
 
 ```bash
-uv run python scripts/run_realtime_demo.py --port 8000
+curl http://127.0.0.1:8000/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "tts-1",
+    "input": "Hello, this is VibeVoice running locally!",
+    "voice": "en-Carter_man",
+    "response_format": "mp3"
+  }' \
+  --output speech.mp3
 ```
 
-Then open your browser to **<http://127.0.0.1:8000>** to use the interactive web UI.
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| `model` | `string` | Model identifier (e.g., `tts-1`). Ignored but required for compatibility. |
+| `input` | `string` | The text to generate audio for. |
+| `voice` | `string` | The voice ID to use (see `/v1/audio/voices`). |
+| `response_format` | `string` | Output format: `wav` (default) or `mp3`. |
+| `speed` | `float` | Speed of generation (currently ignored). |
 
-Press `Ctrl+C` to stop the server.
+### 🎤 List Voices
 
-## PyTorch CUDA Setup
+**Endpoint**: `GET /v1/audio/voices`
 
-For Ubuntu systems with NVIDIA GPUs, you need PyTorch with CUDA support:
-
-### Option 1: Install PyTorch with CUDA in the existing environment
-
-After running the bootstrap script, install PyTorch with CUDA support:
+Returns a list of available voices.
 
 ```bash
-# For CUDA 11.8
-uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-
-# For CUDA 12.1
-uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+curl http://127.0.0.1:8000/v1/audio/voices
 ```
 
-### Option 2: Verify CUDA availability
-
-Check if CUDA is available:
-
-```bash
-uv run python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); print(f'CUDA version: {torch.version.cuda if torch.cuda.is_available() else \"N/A\"}')"
+**Response:**
+```json
+{
+  "voices": [
+    {
+      "id": "en-Carter_man",
+      "name": "en-Carter_man",
+      "object": "voice",
+      "category": "vibe_voice",
+      ...
+    },
+    ...
+  ]
+}
 ```
 
-## Advanced Usage
-
-### Custom model path
-
-```bash
-uv run python scripts/run_realtime_demo.py \
-  --model-path /path/to/your/model \
-  --port 8000
-```
-
-### Device selection
-
-The script auto-detects the best device (prefers CUDA on Linux, MPS on macOS), but you can override:
-
-```bash
-# Use CUDA (NVIDIA GPU on Linux/Ubuntu)
-uv run python scripts/run_realtime_demo.py --device cuda
-
-# Use MPS (Apple Silicon GPU on macOS)
-uv run python scripts/run_realtime_demo.py --device mps
-
-# Use CPU
-uv run python scripts/run_realtime_demo.py --device cpu
-```
-
-### Development mode (auto-reload)
-
-```bash
-uv run python scripts/run_realtime_demo.py --reload
-```
-
-## Configuration
-
-The VibeVoice realtime demo supports several configuration parameters that affect speech generation quality and behavior. These can be adjusted in the web UI once the server is running.
-
-### CFG Scale (Classifier-Free Guidance)
-
-**Default:** `1.5`  
-**Range:** `1.3` to `3.0`  
-**What it does:** Controls how strongly the model follows the text condition during diffusion-based speech generation.
-
-- **Lower values (1.3–1.5)**: More natural, varied prosody; may be less strict to text
-- **Higher values (2.0–3.0)**: More strict adherence to text; may sound more constrained or less natural
-
-The CFG mechanism blends conditioned (with text) and unconditioned (without text) predictions:
-
-```python
-output = uncond_prediction + cfg_scale × (cond_prediction - uncond_prediction)
-```
-
-**Recommendation:** Start with the default `1.5` for balanced quality and adherence. Adjust based on your needs:
-
-- For more natural, conversational speech → lower (1.3–1.4)
-- For more precise, controlled speech → higher (2.0–2.5)
-
-### Inference Steps
-
-**Default:** `5`  
-**Range:** `5` to `20`  
-**What it does:** Number of diffusion steps used during speech generation. More steps generally mean higher quality but slower generation.
-
-- **Lower values (5–8)**: Faster generation, good quality for most use cases
-- **Higher values (10–20)**: Slower but potentially higher quality, more detailed audio
-
-**Recommendation:** The default `5` steps provides a good balance between speed and quality for real-time use. Increase if you need higher quality and can tolerate slower generation.
+## ⚙️ Configuration
 
 ### Device Selection
 
-Controls which hardware device is used for inference:
+The runner automatically detects the best available device:
+- **CUDA**: NVIDIA GPUs (Linux)
+- **MPS**: Apple Silicon (macOS)
+- **CPU**: Fallback
 
-- **`cuda`** (default on Linux with NVIDIA GPU): NVIDIA GPU acceleration using CUDA
-- **`mps`** (default on macOS with Apple Silicon): Uses Apple's Metal Performance Shaders for GPU acceleration
-- **`cpu`**: CPU-only inference (slower but works everywhere)
-
-The script auto-detects the best available device. See [Device selection](#device-selection) above for manual override.
-
-### Voice Selection
-
-The demo includes multiple voice presets that can be selected in the web UI. Available voices depend on the model and are loaded from `third_party/VibeVoice/demo/voices/streaming_model/`.
-
-**Note:** Voice prompts are embedded in the model to mitigate deepfake risks and ensure low latency. Custom voice creation requires contacting the VibeVoice team.
-
-## Project Structure
-
-```text
-vibevoice/
-├── scripts/
-│   ├── bootstrap_uv.sh          # Initial setup script
-│   ├── download_model.py         # Model download script
-│   └── run_realtime_demo.py     # Demo server launcher
-├── third_party/
-│   └── VibeVoice/                # Cloned VibeVoice repository
-├── models/
-│   └── VibeVoice-Realtime-0.5B/  # Downloaded model (created after step 2)
-├── pyproject.toml                # Project configuration
-└── README.md                     # This file
-```
-
-## Troubleshooting
-
-### Model download fails with authentication error
-
-If you see an authentication error, the model may be gated:
-
-1. Log in to Hugging Face: `huggingface-cli login`
-2. Or set `HF_TOKEN` environment variable
-3. Or pass `--token <your_token>` to the download script
-
-### MPS or CUDA device not available
-
-If MPS is not available (older macOS or Intel Mac) or CUDA is not available (no NVIDIA GPU or missing CUDA drivers), the script will automatically fall back to CPU. You can also explicitly use CPU:
-
+To force a specific device:
 ```bash
 uv run python scripts/run_realtime_demo.py --device cpu
 ```
 
-For Ubuntu systems, make sure you have:
-- NVIDIA GPU drivers installed
-- CUDA toolkit installed
-- PyTorch with CUDA support (see [PyTorch CUDA setup](#pytorch-cuda-setup))
-
-### Port already in use
-
-If port 8000 is already in use, specify a different port:
+### Custom Model Path
 
 ```bash
-uv run python scripts/run_realtime_demo.py --port 8080
+uv run python scripts/run_realtime_demo.py --model-path /path/to/model
 ```
 
-### Bootstrap fails
+## 🏆 Credits & Acknowledgements
 
-Make sure:
+This project stands on the shoulders of giants. Huge thanks to:
 
-- `uv` is installed and in your PATH
-- You have internet connectivity
-- Git is installed
+- **[Microsoft](https://github.com/microsoft/VibeVoice)**: For releasing the incredible **VibeVoice** model and the original codebase.
+- **[groxaxo](https://github.com/groxaxo)**: For the original repository and initial setup.
+- **[Kokoro FastAPI Creators](https://github.com/remsky/Kokoro-FastAPI)**: For inspiration on the FastAPI implementation and structure.
+- **Open Source Community**: For all the tools and libraries that make this possible.
 
-## Differences from Colab
+---
 
-- **No cloudflared tunnel**: The demo runs purely locally (no public URL)
-- **Multi-platform support**: Works on Ubuntu with CUDA GPUs and macOS with Apple Silicon
-- **Auto-device detection**: Automatically detects and uses the best available device (CUDA, MPS, or CPU)
-- **Local model storage**: Models are stored in `models/` directory instead of `/content/models/`
-
-## Reference
-
-- [VibeVoice GitHub](https://github.com/microsoft/VibeVoice)
-- [VibeVoice Realtime Colab](https://colab.research.google.com/github/microsoft/VibeVoice/blob/main/demo/vibevoice_realtime_colab.ipynb)
-- [VibeVoice Realtime Documentation](https://github.com/microsoft/VibeVoice/blob/main/docs/vibevoice-realtime-0.5b.md)
+<div align="center">
+Made with ❤️ for the AI Community
+</div>

@@ -82,6 +82,14 @@ def main():
         print("   ./scripts/bootstrap_uv.sh")
         sys.exit(1)
 
+    # Apply overrides if they exist
+    override_app = project_root / "overrides" / "app.py"
+    target_app = vibevoice_dir / "demo" / "web" / "app.py"
+    if override_app.exists():
+        import shutil
+        # print(f"🔧 Applying override: {override_app} -> {target_app}")
+        shutil.copy2(override_app, target_app)
+
     # Set environment variables (as the demo script expects)
     os.environ["MODEL_PATH"] = str(model_path)
     os.environ["MODEL_DEVICE"] = device

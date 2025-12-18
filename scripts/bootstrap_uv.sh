@@ -40,6 +40,12 @@ else
     echo "✅ VibeVoice repository already exists"
 fi
 
+# Apply overrides
+if [ -f "overrides/app.py" ]; then
+    echo "🔧 Applying custom app.py override..."
+    cp overrides/app.py "$VIBEVOICE_DIR/demo/web/app.py"
+fi
+
 echo "📚 Syncing dependencies (this will install VibeVoice from third_party/ via pyproject.toml)..."
 uv sync
 
