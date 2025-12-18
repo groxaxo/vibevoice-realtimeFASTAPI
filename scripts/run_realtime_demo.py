@@ -16,11 +16,13 @@ import torch
 
 
 def detect_device():
-    """Auto-detect the best device for macOS."""
-    if torch.backends.mps.is_available():
-        return "mps"
-    elif torch.cuda.is_available():
+    """Auto-detect the best device (prefers CUDA on Linux, MPS on macOS)."""
+    # Prefer CUDA if available (common on Linux/Ubuntu with NVIDIA GPUs)
+    if torch.cuda.is_available():
         return "cuda"
+    # Fall back to MPS on macOS with Apple Silicon
+    elif torch.backends.mps.is_available():
+        return "mps"
     else:
         return "cpu"
 
@@ -46,7 +48,7 @@ def main():
         type=str,
         default=None,
         choices=["cpu", "cuda", "mps"],
-        help="Device to use (default: auto-detect, prefers mps on macOS)",
+        help="Device to use (default: auto-detect, prefers cuda on Linux, mps on macOS)",
     )
     parser.add_argument(
         "--reload",
