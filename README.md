@@ -1,16 +1,17 @@
 # Podcast Creator - VibeVoice Realtime Local Runner
 
-A local macOS runner for the [VibeVoice Realtime](https://github.com/microsoft/VibeVoice) text-to-speech demo, adapted from the [Colab notebook](https://colab.research.google.com/github/microsoft/VibeVoice/blob/main/demo/vibevoice_realtime_colab.ipynb).
+A local runner for the [VibeVoice Realtime](https://github.com/microsoft/VibeVoice) text-to-speech demo, adapted from the [Colab notebook](https://colab.research.google.com/github/microsoft/VibeVoice/blob/main/demo/vibevoice_realtime_colab.ipynb).
 
 This project uses `uv` for Python environment and package management.
 
 ## Prerequisites
 
-- **macOS** (tested on Apple Silicon, but Intel should work too)
+- **Ubuntu** (tested with CUDA GPU support) or **macOS** (tested on Apple Silicon)
 - **uv** installed: `curl -LsSf https://astral.sh/uv/install.sh | sh`
 - **Python 3.11** (will be installed automatically by uv if needed)
 - **Git** (for cloning VibeVoice repository)
 - **Hugging Face account** (for downloading the model; may require authentication)
+- **For Ubuntu with NVIDIA GPU**: CUDA-compatible PyTorch installation (see [PyTorch CUDA setup](#pytorch-cuda-setup))
 
 ## Quick Start
 
@@ -54,6 +55,30 @@ Then open your browser to **<http://127.0.0.1:8000>** to use the interactive web
 
 Press `Ctrl+C` to stop the server.
 
+## PyTorch CUDA Setup
+
+For Ubuntu systems with NVIDIA GPUs, you need PyTorch with CUDA support:
+
+### Option 1: Install PyTorch with CUDA in the existing environment
+
+After running the bootstrap script, install PyTorch with CUDA support:
+
+```bash
+# For CUDA 11.8
+uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
+# For CUDA 12.1
+uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+```
+
+### Option 2: Verify CUDA availability
+
+Check if CUDA is available:
+
+```bash
+uv run python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); print(f'CUDA version: {torch.version.cuda if torch.cuda.is_available() else \"N/A\"}')"
+```
+
 ## Advanced Usage
 
 ### Custom model path
@@ -66,17 +91,17 @@ uv run python scripts/run_realtime_demo.py \
 
 ### Device selection
 
-The script auto-detects the best device (prefers MPS on macOS), but you can override:
+The script auto-detects the best device (prefers CUDA on Linux, MPS on macOS), but you can override:
 
 ```bash
-# Use MPS (Apple Silicon GPU)
+# Use CUDA (NVIDIA GPU on Linux/Ubuntu)
+uv run python scripts/run_realtime_demo.py --device cuda
+
+# Use MPS (Apple Silicon GPU on macOS)
 uv run python scripts/run_realtime_demo.py --device mps
 
 # Use CPU
 uv run python scripts/run_realtime_demo.py --device cpu
-
-# Use CUDA (if available)
-uv run python scripts/run_realtime_demo.py --device cuda
 ```
 
 ### Development mode (auto-reload)
@@ -124,9 +149,9 @@ output = uncond_prediction + cfg_scale × (cond_prediction - uncond_prediction)
 
 Controls which hardware device is used for inference:
 
+- **`cuda`** (default on Linux with NVIDIA GPU): NVIDIA GPU acceleration using CUDA
 - **`mps`** (default on macOS with Apple Silicon): Uses Apple's Metal Performance Shaders for GPU acceleration
 - **`cpu`**: CPU-only inference (slower but works everywhere)
-- **`cuda`**: NVIDIA GPU acceleration (if available)
 
 The script auto-detects the best available device. See [Device selection](#device-selection) above for manual override.
 
@@ -162,13 +187,18 @@ If you see an authentication error, the model may be gated:
 2. Or set `HF_TOKEN` environment variable
 3. Or pass `--token <your_token>` to the download script
 
-### MPS device not available
+### MPS or CUDA device not available
 
-If MPS is not available (older macOS or Intel Mac), the script will automatically fall back to CPU. You can also explicitly use CPU:
+If MPS is not available (older macOS or Intel Mac) or CUDA is not available (no NVIDIA GPU or missing CUDA drivers), the script will automatically fall back to CPU. You can also explicitly use CPU:
 
 ```bash
 uv run python scripts/run_realtime_demo.py --device cpu
 ```
+
+For Ubuntu systems, make sure you have:
+- NVIDIA GPU drivers installed
+- CUDA toolkit installed
+- PyTorch with CUDA support (see [PyTorch CUDA setup](#pytorch-cuda-setup))
 
 ### Port already in use
 
@@ -189,7 +219,8 @@ Make sure:
 ## Differences from Colab
 
 - **No cloudflared tunnel**: The demo runs purely locally (no public URL)
-- **No T4 GPU check**: We auto-detect the best available device
+- **Multi-platform support**: Works on Ubuntu with CUDA GPUs and macOS with Apple Silicon
+- **Auto-device detection**: Automatically detects and uses the best available device (CUDA, MPS, or CPU)
 - **Local model storage**: Models are stored in `models/` directory instead of `/content/models/`
 
 ## Reference
