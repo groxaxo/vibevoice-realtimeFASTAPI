@@ -110,7 +110,7 @@ curl http://127.0.0.1:8000/v1/audio/speech \
   }' \
   --output hello.mp3
 
-# Play the audio (macOS: open, Linux: xdg-open, Windows: start)
+# Play the audio: macOS: open hello.mp3, Linux: xdg-open hello.mp3, Windows: start hello.mp3
 ```
 
 ## 📖 API Documentation
