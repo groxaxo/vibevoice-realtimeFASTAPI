@@ -108,7 +108,9 @@ curl http://127.0.0.1:8000/v1/audio/speech \
     "voice": "en-Carter_man",
     "response_format": "mp3"
   }' \
-  --output hello.mp3 && open hello.mp3
+  --output hello.mp3
+
+# Play the audio (macOS: open, Linux: xdg-open, Windows: start)
 ```
 
 ## 📖 API Documentation
