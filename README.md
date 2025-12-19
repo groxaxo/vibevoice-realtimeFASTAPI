@@ -139,40 +139,40 @@ uv run python scripts/run_realtime_demo.py --model-path /path/to/model
 
 ## 🎧 Demos
 
-All examples generated using **15 inference steps**.
+All examples generated using **15 inference steps** with text in the voice's native language.
 
 ### English
-| Voice | Audio Example |
+| Voice | Audio Example (MP3) |
 | :--- | :--- |
-| **en-Carter_man** | [Listen](docs/demos/en-Carter_man.wav) |
-| **en-Davis_man** | [Listen](docs/demos/en-Davis_man.wav) |
-| **en-Emma_woman** | [Listen](docs/demos/en-Emma_woman.wav) |
-| **en-Frank_man** | [Listen](docs/demos/en-Frank_man.wav) |
-| **en-Grace_woman** | [Listen](docs/demos/en-Grace_woman.wav) |
-| **en-Mike_man** | [Listen](docs/demos/en-Mike_man.wav) |
-| **in-Samuel_man** | [Listen](docs/demos/in-Samuel_man.wav) |
+| **en-Carter_man** | <audio src="docs/demos/en-Carter_man.mp3" controls preload="none"></audio> |
+| **en-Davis_man** | <audio src="docs/demos/en-Davis_man.mp3" controls preload="none"></audio> |
+| **en-Emma_woman** | <audio src="docs/demos/en-Emma_woman.mp3" controls preload="none"></audio> |
+| **en-Frank_man** | <audio src="docs/demos/en-Frank_man.mp3" controls preload="none"></audio> |
+| **en-Grace_woman** | <audio src="docs/demos/en-Grace_woman.mp3" controls preload="none"></audio> |
+| **en-Mike_man** | <audio src="docs/demos/en-Mike_man.mp3" controls preload="none"></audio> |
+| **in-Samuel_man** | <audio src="docs/demos/in-Samuel_man.mp3" controls preload="none"></audio> |
 
 ### Other Languages
-| Language | Voice | Audio Example |
+| Language | Voice | Audio Example (MP3) |
 | :--- | :--- | :--- |
-| **German** | de-Spk0_man | [Listen](docs/demos/de-Spk0_man.wav) |
-| **German** | de-Spk1_woman | [Listen](docs/demos/de-Spk1_woman.wav) |
-| **Spanish** | sp-Spk0_woman | [Listen](docs/demos/sp-Spk0_woman.wav) |
-| **Spanish** | sp-Spk1_man | [Listen](docs/demos/sp-Spk1_man.wav) |
-| **French** | fr-Spk0_man | [Listen](docs/demos/fr-Spk0_man.wav) |
-| **French** | fr-Spk1_woman | [Listen](docs/demos/fr-Spk1_woman.wav) |
-| **Italian** | it-Spk0_woman | [Listen](docs/demos/it-Spk0_woman.wav) |
-| **Italian** | it-Spk1_man | [Listen](docs/demos/it-Spk1_man.wav) |
-| **Japanese** | jp-Spk0_man | [Listen](docs/demos/jp-Spk0_man.wav) |
-| **Japanese** | jp-Spk1_woman | [Listen](docs/demos/jp-Spk1_woman.wav) |
-| **Korean** | kr-Spk0_woman | [Listen](docs/demos/kr-Spk0_woman.wav) |
-| **Korean** | kr-Spk1_man | [Listen](docs/demos/kr-Spk1_man.wav) |
-| **Dutch** | nl-Spk0_man | [Listen](docs/demos/nl-Spk0_man.wav) |
-| **Dutch** | nl-Spk1_woman | [Listen](docs/demos/nl-Spk1_woman.wav) |
-| **Polish** | pl-Spk0_man | [Listen](docs/demos/pl-Spk0_man.wav) |
-| **Polish** | pl-Spk1_woman | [Listen](docs/demos/pl-Spk1_woman.wav) |
-| **Portuguese** | pt-Spk0_woman | [Listen](docs/demos/pt-Spk0_woman.wav) |
-| **Portuguese** | pt-Spk1_man | [Listen](docs/demos/pt-Spk1_man.wav) |
+| **German** | de-Spk0_man | <audio src="docs/demos/de-Spk0_man.mp3" controls preload="none"></audio> |
+| **German** | de-Spk1_woman | <audio src="docs/demos/de-Spk1_woman.mp3" controls preload="none"></audio> |
+| **Spanish** | sp-Spk0_woman | <audio src="docs/demos/sp-Spk0_woman.mp3" controls preload="none"></audio> |
+| **Spanish** | sp-Spk1_man | <audio src="docs/demos/sp-Spk1_man.mp3" controls preload="none"></audio> |
+| **French** | fr-Spk0_man | <audio src="docs/demos/fr-Spk0_man.mp3" controls preload="none"></audio> |
+| **French** | fr-Spk1_woman | <audio src="docs/demos/fr-Spk1_woman.mp3" controls preload="none"></audio> |
+| **Italian** | it-Spk0_woman | <audio src="docs/demos/it-Spk0_woman.mp3" controls preload="none"></audio> |
+| **Italian** | it-Spk1_man | <audio src="docs/demos/it-Spk1_man.mp3" controls preload="none"></audio> |
+| **Japanese** | jp-Spk0_man | <audio src="docs/demos/jp-Spk0_man.mp3" controls preload="none"></audio> |
+| **Japanese** | jp-Spk1_woman | <audio src="docs/demos/jp-Spk1_woman.mp3" controls preload="none"></audio> |
+| **Korean** | kr-Spk0_woman | <audio src="docs/demos/kr-Spk0_woman.mp3" controls preload="none"></audio> |
+| **Korean** | kr-Spk1_man | <audio src="docs/demos/kr-Spk1_man.mp3" controls preload="none"></audio> |
+| **Dutch** | nl-Spk0_man | <audio src="docs/demos/nl-Spk0_man.mp3" controls preload="none"></audio> |
+| **Dutch** | nl-Spk1_woman | <audio src="docs/demos/nl-Spk1_woman.mp3" controls preload="none"></audio> |
+| **Polish** | pl-Spk0_man | <audio src="docs/demos/pl-Spk0_man.mp3" controls preload="none"></audio> |
+| **Polish** | pl-Spk1_woman | <audio src="docs/demos/pl-Spk1_woman.mp3" controls preload="none"></audio> |
+| **Portuguese** | pt-Spk0_woman | <audio src="docs/demos/pt-Spk0_woman.mp3" controls preload="none"></audio> |
+| **Portuguese** | pt-Spk1_man | <audio src="docs/demos/pt-Spk1_man.mp3" controls preload="none"></audio> |
 
 
 ## 🏆 Credits & Acknowledgements
