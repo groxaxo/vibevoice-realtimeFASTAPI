@@ -47,7 +47,7 @@ class StreamingTTSService:
         self,
         model_path: str,
         device: str = "cuda",
-        inference_steps: int = 5,
+        inference_steps: int = 15,
     ) -> None:
         # Keep model_path as string for HuggingFace repo IDs (Path() converts / to \ on Windows)
         self.model_path = model_path
@@ -347,9 +347,11 @@ async def _startup() -> None:
 
     device = os.environ.get("MODEL_DEVICE", "cuda")
     
+    inference_steps = int(os.environ.get("INFERENCE_STEPS", "15"))
     service = StreamingTTSService(
         model_path=model_path,
-        device=device
+        device=device,
+        inference_steps=inference_steps
     )
     service.load()
 

@@ -55,6 +55,12 @@ def main():
         action="store_true",
         help="Enable auto-reload (for development)",
     )
+    parser.add_argument(
+        "--inference-steps",
+        type=int,
+        default=15,
+        help="Number of inference steps (default: 15)",
+    )
     args = parser.parse_args()
 
     # Auto-detect device if not specified
@@ -83,12 +89,26 @@ def main():
         sys.exit(1)
 
     # Apply overrides if they exist
-    override_app = project_root / "overrides" / "app.py"
-    target_app = vibevoice_dir / "demo" / "web" / "app.py"
-    if override_app.exists():
+    overrides_dir = project_root / "overrides"
+    if overrides_dir.exists():
         import shutil
-        # print(f"🔧 Applying override: {override_app} -> {target_app}")
-        shutil.copy2(override_app, target_app)
+        # Copy app.py
+        override_app = overrides_dir / "app.py"
+        target_app = vibevoice_dir / "demo" / "web" / "app.py"
+        if override_app.exists():
+            shutil.copy2(override_app, target_app)
+        
+        # Copy vibevoice_realtime_demo.py
+        override_demo = overrides_dir / "vibevoice_realtime_demo.py"
+        target_demo = vibevoice_dir / "demo" / "vibevoice_realtime_demo.py"
+        if override_demo.exists():
+            shutil.copy2(override_demo, target_demo)
+            
+        # Copy realtime_model_inference_from_file.py
+        override_inf = overrides_dir / "realtime_model_inference_from_file.py"
+        target_inf = vibevoice_dir / "demo" / "realtime_model_inference_from_file.py"
+        if override_inf.exists():
+            shutil.copy2(override_inf, target_inf)
 
     # Set environment variables (as the demo script expects)
     os.environ["MODEL_PATH"] = str(model_path)
@@ -98,7 +118,8 @@ def main():
     print(f"   Model: {model_path}")
     print(f"   Device: {device}")
     print(f"   Port: {args.port}")
-    print(f"\n🌐 Open your browser to: http://127.0.0.1:{args.port}")
+    print(f"\n🌐 Server running at: http://0.0.0.0:{args.port}")
+    print(f"   Local access: http://127.0.0.1:{args.port}")
     print("   Press Ctrl+C to stop the server\n")
 
     # Build command to run the demo script
@@ -111,6 +132,8 @@ def main():
         str(model_path),
         "--device",
         device,
+        "--inference_steps",
+        str(args.inference_steps),
     ]
     if args.reload:
         cmd.append("--reload")
