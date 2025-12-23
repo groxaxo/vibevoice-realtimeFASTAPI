@@ -110,6 +110,12 @@ def main():
         if override_inf.exists():
             shutil.copy2(override_inf, target_inf)
 
+        # Copy text_processing.py
+        override_tp = overrides_dir / "text_processing.py"
+        target_tp = vibevoice_dir / "demo" / "web" / "text_processing.py"
+        if override_tp.exists():
+            shutil.copy2(override_tp, target_tp)
+
     # Set environment variables (as the demo script expects)
     os.environ["MODEL_PATH"] = str(model_path)
     os.environ["MODEL_DEVICE"] = device

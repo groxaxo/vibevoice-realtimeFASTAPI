@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 from pydantic import BaseModel
 from pydub import AudioSegment
+from .text_processing import normalize_text, split_text_into_sentences
 
 from vibevoice.modular.modeling_vibevoice_streaming_inference import (
     VibeVoiceStreamingForConditionalGenerationInference,
@@ -248,9 +249,16 @@ class StreamingTTSService:
         log_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None,
         stop_event: Optional[threading.Event] = None,
     ) -> Iterator[np.ndarray]:
+        # 1. Clean and normalize
+        text = normalize_text(text)
         if not text.strip():
             return
-        text = text.replace("’", "'")
+
+        # 2. Split into sentences
+        sentences = split_text_into_sentences(text)
+        if not sentences:
+            return
+
         selected_voice, prefilled_outputs = self._get_voice_resources(voice_key)
 
         def emit(event: str, **payload: Any) -> None:
@@ -268,67 +276,78 @@ class StreamingTTSService:
                     steps_to_use = parsed_steps
             except (TypeError, ValueError):
                 pass
+        
         if self.model:
             self.model.set_ddpm_inference_steps(num_steps=steps_to_use)
         self.inference_steps = steps_to_use
 
-        inputs = self._prepare_inputs(text, prefilled_outputs)
-        audio_streamer = AudioStreamer(batch_size=1, stop_signal=None, timeout=None)
-        errors: list = []
+        # Global stop signal for the entire request
         stop_signal = stop_event or threading.Event()
 
-        thread = threading.Thread(
-            target=self._run_generation,
-            kwargs={
-                "inputs": inputs,
-                "audio_streamer": audio_streamer,
-                "errors": errors,
-                "cfg_scale": cfg_scale,
-                "do_sample": do_sample,
-                "temperature": temperature,
-                "top_p": top_p,
-                "refresh_negative": refresh_negative,
-                "prefilled_outputs": prefilled_outputs,
-                "stop_event": stop_signal,
-            },
-            daemon=True,
-        )
-        thread.start()
+        # 3. Stream each sentence sequentially
+        for sentence in sentences:
+            if stop_signal.is_set():
+                break
 
-        generated_samples = 0
-
-        try:
-            stream = audio_streamer.get_stream(0)
-            for audio_chunk in stream:
-                if torch.is_tensor(audio_chunk):
-                    audio_chunk = audio_chunk.detach().cpu().to(torch.float32).numpy()
-                else:
-                    audio_chunk = np.asarray(audio_chunk, dtype=np.float32)
-
-                if audio_chunk.ndim > 1:
-                    audio_chunk = audio_chunk.reshape(-1)
-
-                peak = np.max(np.abs(audio_chunk)) if audio_chunk.size else 0.0
-                if peak > 1.0:
-                    audio_chunk = audio_chunk / peak
-
-                generated_samples += int(audio_chunk.size)
-                emit(
-                    "model_progress",
-                    generated_sec=generated_samples / self.sample_rate,
-                    chunk_sec=audio_chunk.size / self.sample_rate,
+            print(f"[Streaming] Processing sentence: {sentence[:50]}...")
+            
+            inputs = self._prepare_inputs(sentence, prefilled_outputs)
+            audio_streamer = AudioStreamer(batch_size=1, stop_signal=None, timeout=None)
+            errors: list = []
+            
+            # Create a dedicated worker logic for this sentence
+            def _worker():
+                self._run_generation(
+                    inputs=inputs,
+                    audio_streamer=audio_streamer,
+                    errors=errors,
+                    cfg_scale=cfg_scale,
+                    do_sample=do_sample,
+                    temperature=temperature,
+                    top_p=top_p,
+                    refresh_negative=refresh_negative,
+                    prefilled_outputs=prefilled_outputs,
+                    stop_event=stop_signal,
                 )
 
-                chunk_to_yield = audio_chunk.astype(np.float32, copy=False)
+            thread = threading.Thread(target=_worker, daemon=True)
+            thread.start()
 
-                yield chunk_to_yield
-        finally:
-            stop_signal.set()
-            audio_streamer.end()
-            thread.join()
-            if errors:
-                emit("generation_error", message=str(errors[0]))
-                raise errors[0]
+            try:
+                # Yield chunks from this sentence's streamer
+                stream = audio_streamer.get_stream(0)
+                for audio_chunk in stream:
+                    if stop_signal.is_set():
+                        break
+
+                    if torch.is_tensor(audio_chunk):
+                        audio_chunk = audio_chunk.detach().cpu().to(torch.float32).numpy()
+                    else:
+                        audio_chunk = np.asarray(audio_chunk, dtype=np.float32)
+
+                    if audio_chunk.ndim > 1:
+                        audio_chunk = audio_chunk.reshape(-1)
+
+                    peak = np.max(np.abs(audio_chunk)) if audio_chunk.size else 0.0
+                    if peak > 1.0:
+                        audio_chunk = audio_chunk / peak
+
+                    chunk_to_yield = audio_chunk.astype(np.float32, copy=False)
+                    yield chunk_to_yield
+            
+            except Exception as e:
+                emit("generation_error", message=str(e))
+                errors.append(e)
+            finally:
+                # Ensure this sentence's stream is closed
+                audio_streamer.end()
+                thread.join()
+                
+                if errors:
+                    # Decide if we want to stop strictly on error or continue to next sentence
+                    # For now, let's log and maybe continue? Or stop?
+                    # The original code raised logic, let's stop.
+                    raise errors[0]
 
     def chunk_to_pcm16(self, chunk: np.ndarray) -> bytes:
         chunk = np.clip(chunk, -1.0, 1.0)
