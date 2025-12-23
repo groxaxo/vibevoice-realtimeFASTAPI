@@ -14,7 +14,7 @@ import numpy as np
 import scipy.io.wavfile
 import torch
 from fastapi import FastAPI, WebSocket
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 from pydantic import BaseModel
@@ -511,48 +511,78 @@ async def openai_speech(request: OpenAISpeechRequest):
     if lock.locked():
         return Response(status_code=503, content="Service busy")
 
-    async with lock:
-        # Determine voice
-        voice_key = request.voice
-        
-        # Collect audio
-        stop_event = threading.Event()
-        
-        def generate_all():
-            chunks = []
-            iterator = service.stream(
-                request.input,
-                voice_key=voice_key,
-                stop_event=stop_event
-            )
-            for chunk in iterator:
-                chunks.append(chunk)
-            return chunks
-
-        try:
-            chunks = await asyncio.to_thread(generate_all)
-        except Exception as e:
-            traceback.print_exc()
-            return Response(status_code=500, content=str(e))
-        
-        if not chunks:
-            return Response(status_code=500, content="No audio generated")
+    async def generate_audio_stream():
+        async with lock:
+            # Determine voice
+            voice_key = request.voice
             
-        full_audio = np.concatenate(chunks)
-        
-        # Convert to WAV
-        buffer = io.BytesIO()
-        scipy.io.wavfile.write(buffer, service.sample_rate, full_audio)
-        wav_data = buffer.getvalue()
-        
-        if request.response_format == "mp3":
-            buffer.seek(0)
-            audio = AudioSegment.from_wav(buffer)
-            mp3_buffer = io.BytesIO()
-            audio.export(mp3_buffer, format="mp3")
-            return Response(content=mp3_buffer.getvalue(), media_type="audio/mpeg")
-        
-        return Response(content=wav_data, media_type="audio/wav")
+            # Stop event for generation control
+            stop_event = threading.Event()
+            
+            # NOTE: We collect all PCM chunks first because we need to encode them into
+            # a proper audio container format (WAV with header, or MP3 with encoding).
+            # The streaming happens at the HTTP level via chunked transfer encoding
+            # when we yield the encoded audio data in chunks below.
+            chunks = []
+            try:
+                iterator = service.stream(
+                    request.input,
+                    voice_key=voice_key,
+                    stop_event=stop_event
+                )
+                
+                # Collect chunks in a thread
+                def collect_chunks():
+                    result = []
+                    for chunk in iterator:
+                        result.append(chunk)
+                    return result
+                
+                chunks = await asyncio.to_thread(collect_chunks)
+                
+            except Exception:
+                traceback.print_exc()
+                raise
+            
+            if not chunks:
+                raise RuntimeError("No audio generated")
+                
+            full_audio = np.concatenate(chunks)
+            
+            # Convert to requested format and stream it via HTTP chunked encoding
+            if request.response_format == "mp3":
+                # Convert to WAV first, then to MP3
+                wav_buffer = io.BytesIO()
+                scipy.io.wavfile.write(wav_buffer, service.sample_rate, full_audio)
+                wav_buffer.seek(0)
+                audio = AudioSegment.from_wav(wav_buffer)
+                mp3_buffer = io.BytesIO()
+                audio.export(mp3_buffer, format="mp3")
+                mp3_buffer.seek(0)
+                
+                # Stream MP3 data in chunks
+                while True:
+                    chunk = mp3_buffer.read(4096)
+                    if not chunk:
+                        break
+                    yield chunk
+            else:
+                # Convert to WAV
+                wav_buffer = io.BytesIO()
+                scipy.io.wavfile.write(wav_buffer, service.sample_rate, full_audio)
+                wav_buffer.seek(0)
+                
+                # Stream WAV data in chunks
+                while True:
+                    chunk = wav_buffer.read(4096)
+                    if not chunk:
+                        break
+                    yield chunk
+    
+    # Determine media type
+    media_type = "audio/mpeg" if request.response_format == "mp3" else "audio/wav"
+    
+    return StreamingResponse(generate_audio_stream(), media_type=media_type)
 
 
 @app.get("/v1/audio/voices")
@@ -568,6 +598,31 @@ def get_voices():
             "category": "vibe_voice"
         })
     return {"voices": voices}
+
+
+@app.get("/v1/models")
+def get_models():
+    """
+    List available TTS models.
+    Required by Open-WebUI for model selection.
+    """
+    return {
+        "object": "list",
+        "data": [
+            {
+                "id": "tts-1",
+                "object": "model",
+                "created": int(datetime.datetime.now().timestamp()),
+                "owned_by": "vibevoice",
+            },
+            {
+                "id": "tts-1-hd",
+                "object": "model",
+                "created": int(datetime.datetime.now().timestamp()),
+                "owned_by": "vibevoice",
+            }
+        ]
+    }
 
 
 @app.get("/")
