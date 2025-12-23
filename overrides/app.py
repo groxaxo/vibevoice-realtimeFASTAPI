@@ -529,9 +529,6 @@ async def openai_speech(request: OpenAISpeechRequest):
     service: StreamingTTSService = app.state.tts_service
     lock: asyncio.Lock = app.state.websocket_lock
     
-    if lock.locked():
-        return Response(status_code=503, content="Service busy")
-
     async with lock:
         # Determine voice
         voice_key = request.voice
