@@ -519,7 +519,10 @@ async def openai_speech(request: OpenAISpeechRequest):
             # Stop event for generation control
             stop_event = threading.Event()
             
-            # Collect all chunks first to create proper audio format
+            # NOTE: We collect all PCM chunks first because we need to encode them into
+            # a proper audio container format (WAV with header, or MP3 with encoding).
+            # The streaming happens at the HTTP level via chunked transfer encoding
+            # when we yield the encoded audio data in chunks below.
             chunks = []
             try:
                 iterator = service.stream(
@@ -537,16 +540,16 @@ async def openai_speech(request: OpenAISpeechRequest):
                 
                 chunks = await asyncio.to_thread(collect_chunks)
                 
-            except Exception as e:
+            except Exception:
                 traceback.print_exc()
-                raise e
+                raise
             
             if not chunks:
                 raise RuntimeError("No audio generated")
                 
             full_audio = np.concatenate(chunks)
             
-            # Convert to requested format
+            # Convert to requested format and stream it via HTTP chunked encoding
             if request.response_format == "mp3":
                 # Convert to WAV first, then to MP3
                 wav_buffer = io.BytesIO()
