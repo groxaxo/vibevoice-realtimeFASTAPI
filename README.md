@@ -121,7 +121,7 @@ This runner provides OpenAI-compatible endpoints for easy integration with exist
 
 **Endpoint**: `POST /v1/audio/speech`
 
-Generates audio from text.
+Generates audio from text with streaming support for real-time playback.
 
 ```bash
 curl http://127.0.0.1:8000/v1/audio/speech \
@@ -142,6 +142,8 @@ curl http://127.0.0.1:8000/v1/audio/speech \
 | `voice` | `string` | The voice ID to use (see `/v1/audio/voices`). |
 | `response_format` | `string` | Output format: `wav` (default) or `mp3`. |
 | `speed` | `float` | Speed of generation (currently ignored). |
+
+**Streaming Support**: The endpoint uses HTTP chunked transfer encoding to stream audio data as it's generated, enabling real-time playback in compatible clients like Open-WebUI.
 
 ### 🎤 List Voices
 
@@ -169,9 +171,40 @@ curl http://127.0.0.1:8000/v1/audio/voices
 }
 ```
 
+### 🤖 List Models
+
+**Endpoint**: `GET /v1/models`
+
+Returns a list of available TTS models. Required by Open-WebUI for model selection.
+
+```bash
+curl http://127.0.0.1:8000/v1/models
+```
+
+**Response:**
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "tts-1",
+      "object": "model",
+      "created": 1234567890,
+      "owned_by": "vibevoice"
+    },
+    {
+      "id": "tts-1-hd",
+      "object": "model",
+      "created": 1234567890,
+      "owned_by": "vibevoice"
+    }
+  ]
+}
+```
+
 ## 🌐 Open-WebUI Integration
 
-VibeVoice Runner is fully compatible with [Open-WebUI](https://github.com/open-webui/open-webui), making it a perfect local TTS backend.
+VibeVoice Runner is fully compatible with [Open-WebUI](https://github.com/open-webui/open-webui), making it a perfect local TTS backend with streaming support.
 
 ### Setup Steps
 
@@ -186,8 +219,17 @@ VibeVoice Runner is fully compatible with [Open-WebUI](https://github.com/open-w
    - Set **API Base URL** to `http://127.0.0.1:8000/v1`
    - Leave **API Key** empty (not required for local)
    - Select a voice from the dropdown
+   - Select a model (e.g., `tts-1` or `tts-1-hd`)
 
 3. **Enjoy Private TTS**: Your Open-WebUI instance now uses local TTS without sending data to external services!
+
+### Streaming Support
+
+VibeVoice Runner fully supports Open-WebUI's streaming TTS method:
+- ✅ **HTTP Chunked Transfer Encoding**: Audio streams in real-time chunks
+- ✅ **Compatible Endpoints**: All required endpoints (`/v1/models`, `/v1/audio/speech`, `/v1/audio/voices`)
+- ✅ **Low Latency**: Audio starts playing as soon as the first chunks are ready
+- ✅ **Multiple Formats**: Supports both WAV and MP3 streaming
 
 ### Benefits with Open-WebUI
 - ✅ **Complete Privacy**: All AI conversations and TTS stay on your machine
