@@ -240,6 +240,8 @@ def normalize_text(text: str) -> str:
     text = text.replace(chr(8216), "'").replace(chr(8217), "'")
     text = text.replace("«", chr(8220)).replace("»", chr(8221))
     text = text.replace(chr(8220), '"').replace(chr(8221), '"')
+    # Remove inverted exclamation mark which can cause TTS cutoff
+    text = text.replace("¡", "")
     # CJK punctuation
     for a, b in zip("、。！，：；？–", ",.!,:;?-"):
         text = text.replace(a, b + " ")
