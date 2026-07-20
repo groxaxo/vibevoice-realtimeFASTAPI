@@ -1,410 +1,294 @@
-# 🎙️ VibeVoice Realtime Runner
+# VibeVoice Realtime FASTAPI
 
-<div align="center">
+A local, OpenAI-compatible text-to-speech service with two platform-specific runtime paths:
 
-![VibeVoice](https://img.shields.io/badge/VibeVoice-Realtime-blue?style=for-the-badge)
-![Python](https://img.shields.io/badge/Python-3.11-yellow?style=for-the-badge&logo=python)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.109-green?style=for-the-badge&logo=fastapi)
-![OpenAI API](https://img.shields.io/badge/OpenAI_API-Compatible-orange?style=for-the-badge&logo=openai)
+- **Linux/NVIDIA:** Microsoft VibeVoice through the existing PyTorch/CUDA realtime demo.
+- **Apple Silicon MacBooks:** Qwen3-TTS through native MLX backends, including the exact linked 1.7B 8-bit model and a matching 1.7B 4-bit model.
 
-**A high-performance local runner for Microsoft's VibeVoice text-to-speech models.**
-*Now with OpenAI-compatible API endpoints and multi-model support!*
+The server remains local and does not require a hosted inference provider.
 
-[Features](#features) • [Quick Start](#quick-start) • [Multi-Model Support](#-multi-model-support) • [API Documentation](#api-documentation) • [Credits](#credits)
+## Supported model profiles
 
-</div>
+| Model key | Model source | Runtime | Platform | Notes |
+|---|---|---|---|---|
+| `realtime-0.5b` | `microsoft/VibeVoice-Realtime-0.5B` | Existing VibeVoice subprocess | Linux/CUDA, PyTorch fallback devices | Realtime websocket and web UI |
+| `tts-1.5b` | `microsoft/VibeVoice-1.5B` | Native long-form adapter | Backend-dependent | Non-streaming |
+| `tts-7b` | `vibevoice/VibeVoice-7B` by default | Native long-form adapter | Backend-dependent | Non-streaming |
+| `qwen3-tts-mlx-8bit` | `aufklarer/Qwen3-TTS-12Hz-1.7B-Base-MLX-8bit` | Speech Swift CLI | Apple Silicon macOS | Exact requested 8-bit/minmax bundle, 24 kHz |
+| `qwen3-tts-mlx-4bit` | `mlx-community/Qwen3-TTS-12Hz-1.7B-Base-4bit` | `mlx-audio` in process | Apple Silicon macOS | 4-bit/affine bundle, 24 kHz |
 
----
+The two Qwen backends are deliberately separate. The aufklarer 8-bit bundle is packaged for Speech Swift's minmax loader, while the registered 4-bit bundle is packaged for `mlx-audio`'s affine loader. Treating them as interchangeable produces configuration or tensor-loading failures.
 
-## 🚀 Features
-
-- **Local & Private**: Runs entirely on your machine (CUDA/MPS/CPU).
-- **Realtime Streaming**: Low-latency text-to-speech generation.
-- **Multi-Model Support**: Registry for Realtime 0.5B, 1.5B, and 7B models.
-- **LavaSR Super-Resolution**: Neural audio upsampling (24kHz → 48kHz) at 300-500x realtime, enabled by default. Surpasses 6GB diffusion models in quality.
-- **OpenAI API Compatible**: Drop-in replacement for OpenAI's TTS API with model selection.
-- **Multiple Audio Formats**: Supports Opus (default), WAV, and MP3 output.
-- **Web Interface**: Built-in interactive demo UI.
-- **Multi-Platform**: Optimized for Ubuntu (CUDA) and macOS (Apple Silicon).
-- **Easy Setup**: Powered by `uv` for fast, reliable dependency management.
-
-## ⚡ Quick Start
-
-### Prerequisites
-
-- **uv** installed: `curl -LsSf https://astral.sh/uv/install.sh | sh`
-- **Git**
-- **Hugging Face Account** (for model download)
-
-### Installation
-
-1.  **Bootstrap the environment**:
-    ```bash
-    ./scripts/bootstrap_uv.sh
-    ```
-
-2.  **Download a model**:
-    ```bash
-    # Default: Realtime 0.5B (fully supported)
-    uv run python scripts/download_model.py
-
-    # Or specify a model explicitly
-    uv run python scripts/download_model.py --model realtime-0.5b
-    uv run python scripts/download_model.py --model tts-1.5b
-    uv run python scripts/download_model.py --model tts-7b
-    ```
-
-3.  **Run the server**:
-    ```bash
-    # Using the generic launcher
-    uv run python scripts/run_server.py --model realtime-0.5b --port 8000
-
-    # Or the backward-compatible script
-    uv run python scripts/run_realtime_demo.py --port 8000
-    ```
-
-    - **Web UI**: Open [http://127.0.0.1:8000/web](http://127.0.0.1:8000/web)
-    - **API**: `http://127.0.0.1:8000/v1/audio/speech`
-
-## 🧩 Multi-Model Support
-
-This runner supports multiple VibeVoice model families through a unified registry and adapter layer.
-
-### Supported Models
-
-| Model Key | HF Model ID | Family | Status | Streaming | Multi-Speaker |
-|:---|:---|:---|:---|:---|:---|
-| `realtime-0.5b` | `microsoft/VibeVoice-Realtime-0.5B` | Realtime | ✅ Fully supported | ✅ | ❌ |
-| `tts-1.5b` | `microsoft/VibeVoice-1.5B` | Longform | 🔧 Registry + API ready | ❌ | ✅ |
-| `tts-7b` | `microsoft/VibeVoice-7B` | Longform | 🔧 Registry + API ready | ❌ | ✅ |
-
-### Model Aliases
-
-For backward compatibility and convenience, the following aliases are supported:
-
-| Alias | Resolves To |
-|:---|:---|
-| `tts-1` | `realtime-0.5b` |
-| `tts-1-hd` | `realtime-0.5b` |
-| `vibevoice-realtime-0.5b` | `realtime-0.5b` |
-| `vibevoice-1.5b` | `tts-1.5b` |
-| `vibevoice-7b` | `tts-7b` |
-
-### Model Selection in API Requests
-
-The `model` field in `/v1/audio/speech` requests is **no longer ignored**. It is resolved via the alias mapping and validated for capability:
+List every canonical key and alias:
 
 ```bash
-# Uses realtime-0.5b (backward compatible)
-curl http://127.0.0.1:8000/v1/audio/speech \
-  -H "Content-Type: application/json" \
-  -d '{"model": "tts-1", "input": "Hello!", "voice": "en-Carter_man"}'
-
-# Explicitly request realtime
-curl http://127.0.0.1:8000/v1/audio/speech \
-  -H "Content-Type: application/json" \
-  -d '{"model": "realtime-0.5b", "input": "Hello!", "voice": "en-Carter_man"}'
-
-# Request a longform model (returns 501 if backend not installed)
-curl http://127.0.0.1:8000/v1/audio/speech \
-  -H "Content-Type: application/json" \
-  -d '{"model": "tts-1.5b", "input": "Hello!"}'
+uv run vibevoice-server --list-models
 ```
 
-### Error Responses
+## Apple Silicon MacBook setup
 
-| Status | Condition |
-|:---|:---|
-| **400** | Invalid request for model (e.g., `speakers` sent to a realtime model) |
-| **404** | Unknown model key/alias |
-| **501** | Known model but backend not installed |
+### Requirements
 
-### Longform Model Status
+- Apple Silicon (`arm64`) Mac; do not run the server under Rosetta.
+- macOS 15 or newer for the current Speech Swift package.
+- Native ARM Homebrew at `/opt/homebrew`.
+- `uv`.
+- Enough unified memory for the selected model and runtime. The 4-bit profile is the lower-memory option.
 
-The `tts-1.5b` and `tts-7b` models are registered in the model registry with full API plumbing, but require a compatible long-form inference backend to be installed. When requested without a backend, the API returns a clear 501 error:
+### Install
 
-```json
-{
-  "error": {
-    "message": "Model 'tts-1.5b' is registered but no compatible long-form backend is installed/configured.",
-    "type": "backend_unavailable"
-  }
-}
+```bash
+git clone https://github.com/groxaxo/vibevoice-realtimeFASTAPI.git
+cd vibevoice-realtimeFASTAPI
+bash scripts/bootstrap_macos.sh
 ```
 
-### WebSocket Streaming (`/stream`)
+The bootstrap script:
 
-The `/stream` WebSocket endpoint is **realtime-only**. Longform models are not supported on this endpoint and will be rejected with an error message.
+1. Uses a Python 3.12 `uv` environment.
+2. Installs the mutually isolated Python `mac` extra, including the model-compatible `mlx-audio==0.3.0` loader.
+3. Installs Speech Swift for the exact 8-bit model.
+4. Installs `ffmpeg` for optional MP3 and Opus responses.
 
-### 🌐 Frontpage Controls (Web UI)
+The Qwen-only path does **not** import PyTorch or require the VibeVoice submodule. The `mac` and `vibevoice` extras are declared mutually exclusive because their validated Transformers versions are incompatible.
 
-The frontpage at `/web` (also available at `/`) is fully connected to backend endpoints and exposes:
+### Run the exact 8-bit model
 
-- **Model selection** (`tts-1`, `tts-1-hd`) for OpenAI-compatible requests
-- **Voice selection** from `GET /config` and `GET /v1/audio/voices`
-- **Temperature control** (`temp`): set `0` to disable sampling
-- **Generate Audio** action that calls `POST /v1/audio/speech`
-- **Download Audio** action to export the generated file in the selected format (`opus`/`wav`/`mp3`)
+```bash
+uv run vibevoice-server \
+  --model qwen3-tts-mlx-8bit \
+  --host 127.0.0.1 \
+  --port 8000
+```
 
-## 📖 API Documentation
+This adapter invokes Speech Swift with the exact model ID:
 
-This runner provides OpenAI-compatible endpoints for easy integration with existing tools and libraries.
+```text
+aufklarer/Qwen3-TTS-12Hz-1.7B-Base-MLX-8bit
+```
 
-### 🗣️ Speech Generation
+### Run the 4-bit model
 
-**Endpoint**: `POST /v1/audio/speech`
+```bash
+uv run vibevoice-server \
+  --model qwen3-tts-mlx-4bit \
+  --host 127.0.0.1 \
+  --port 8000
+```
 
-Generates audio from text with LavaSR super-resolution enabled by default (24kHz → 48kHz).
-This is also the endpoint used by the frontpage "Generate Audio" button.
+On first use, `mlx-audio` downloads:
+
+```text
+mlx-community/Qwen3-TTS-12Hz-1.7B-Base-4bit
+```
+
+The 4-bit loader resolves its source in this order:
+
+1. Explicit `--model-path` value, which may be a local directory or Hugging Face repository ID.
+2. A non-empty registry-local directory under `models/`.
+3. The registry Hugging Face ID.
+
+That fallback fixes the previous launcher behavior that converted every source into a local `Path`, even when no local model directory existed.
+
+### Basic synthesis request
+
+Use WAV while validating the installation because it requires no transcoding:
 
 ```bash
 curl http://127.0.0.1:8000/v1/audio/speech \
-  -H "Content-Type: application/json" \
+  -H 'Content-Type: application/json' \
   -d '{
-    "model": "tts-1",
-    "input": "Hello, this is VibeVoice running locally!",
-    "voice": "en-Carter_man",
-    "response_format": "opus"
+    "model": "qwen3-tts-mlx-8bit",
+    "input": "Hello from a Qwen3 TTS model running locally on a MacBook.",
+    "voice": "default",
+    "language": "english",
+    "response_format": "wav"
   }' \
-  --output speech.opus
+  --output speech.wav
 ```
 
-| Parameter | Type | Description |
-| :--- | :--- | :--- |
-| `model` | `string` | Model identifier. Resolved via alias mapping (see [Multi-Model Support](#-multi-model-support)). Default: `tts-1` → `realtime-0.5b`. |
-| `input` | `string` | The text to generate audio for. |
-| `voice` | `string` | The voice ID to use (see `/v1/audio/voices`). |
-| `response_format` | `string` | Output format: `opus` (default, 48kHz), `wav`, or `mp3`. |
-| `temp` | `float` | Sampling temperature. When provided (>0), enables sampling with the given temperature. |
-| `speed` | `float` | Speed of generation (currently ignored). |
-| `speakers` | `list` | Multi-speaker dialogue turns (longform models only). |
+For the 4-bit server, change only the model value:
 
-### 🎤 List Voices
+```json
+"model": "qwen3-tts-mlx-4bit"
+```
 
-**Endpoint**: `GET /v1/audio/voices`
+### Reference-voice conditioning
 
-Returns a list of available voices.
+The Base profiles do not expose named speaker presets. Supply a local reference-audio path that is readable by the server process:
 
 ```bash
-curl http://127.0.0.1:8000/v1/audio/voices
+curl http://127.0.0.1:8000/v1/audio/speech \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "qwen3-tts-mlx-4bit",
+    "input": "This line uses the reference speaker characteristics.",
+    "language": "english",
+    "ref_audio": "/absolute/path/to/reference.wav",
+    "response_format": "wav"
+  }' \
+  --output cloned.wav
 ```
 
-**Response:**
+For the `mlx-audio` 4-bit profile, adding the matching transcript enables its ICL voice-cloning path:
+
 ```json
 {
-  "voices": [
-    {
-      "id": "en-Carter_man",
-      "name": "en-Carter_man",
-      "object": "voice",
-      "category": "vibe_voice",
-      ...
-    },
-    ...
-  ]
+  "ref_audio": "/absolute/path/to/reference.wav",
+  "ref_text": "Transcript of the reference recording"
 }
 ```
 
-### ❤️ Health Check
+`ref_audio` is a server-local path, not an upload URL. Do not expose this service to untrusted clients without authentication and path controls.
 
-**Endpoint**: `GET /health`
+## Linux/NVIDIA VibeVoice setup
 
-Returns service readiness information including lazy loading status, active model, and adapter type.
-
-### ⚙️ Server Configuration
-
-**Endpoint**: `GET /config`
-
-Returns available voices, models, aliases, and per-model capabilities.
-
-## ⚙️ Configuration
-
-### Device Selection
-
-The runner automatically detects the best available device:
-- **CUDA**: NVIDIA GPUs (Linux)
-- **MPS**: Apple Silicon (macOS)
-- **CPU**: Fallback
-
-To force a specific device:
-```bash
-uv run python scripts/run_realtime_demo.py --device cpu
-```
-
-### Inference Steps
-
-Specify the number of DDPM inference steps. Lower values reduce latency and improve realtime responsiveness. The default is **5** (official realtime profile).
+Clone the submodule, resolve the VibeVoice extra, and install the populated checkout editable:
 
 ```bash
-uv run python scripts/run_realtime_demo.py --inference-steps 5
+git clone --recurse-submodules https://github.com/groxaxo/vibevoice-realtimeFASTAPI.git
+cd vibevoice-realtimeFASTAPI
+./scripts/bootstrap_uv.sh
+uv run python scripts/download_model.py --model realtime-0.5b
 ```
 
-### Custom Model Path
+Start the existing realtime application:
 
 ```bash
-uv run python scripts/run_realtime_demo.py --model-path /path/to/model
+CUDA_VISIBLE_DEVICES=0 uv run vibevoice-server \
+  --model realtime-0.5b \
+  --host 0.0.0.0 \
+  --port 8000
 ```
 
-### LavaSR Audio Super-Resolution
-
-LavaSR is **enabled by default** to upsample audio from 24kHz to 48kHz using neural network bandwidth extension. This provides studio-quality 48kHz audio output with minimal performance impact (~2ms per chunk).
-
-To disable LavaSR (output will be 24kHz):
-```bash
-export ENABLE_LAVASR=false
-uv run python scripts/run_realtime_demo.py
-```
-
-Or enable it explicitly:
-```bash
-export ENABLE_LAVASR=true
-uv run python scripts/run_realtime_demo.py
-```
-
-**Benefits of LavaSR:**
-- Neural network super-resolution (not simple interpolation)
-- 300-500x realtime speed (~2ms latency per chunk)
-- Higher quality 48kHz audio output
-- Direct 24kHz → 48kHz upsampling (no quality loss)
-- Quality surpasses 6GB diffusion models (best LSD scores)
-- Compatible with Opus format for optimal compression
-
-**Benchmark Results (RTX 3090):**
-| Chunk Duration | Upsampling Time | Speed |
-|----------------|-----------------|-------|
-| 0.25s | 1.9ms | 128x realtime |
-| 0.50s | 1.9ms | 263x realtime |
-| 1.00s | 1.9ms | 523x realtime |
-| 2.00s | 2.1ms | 961x realtime |
-
-## 📊 Realtime Benchmarking (`/stream`)
-
-Use the websocket benchmark script to measure TTFA, chunk pacing, and RTF with reproducible settings.
+The legacy launcher remains available:
 
 ```bash
-uv run python scripts/benchmark_stream_endpoint.py \
-  --ws-url ws://127.0.0.1:8000/stream \
-  --voice en-Carter_man \
-  --runs 10 \
-  --temp 0 \
-  --steps 5
+uv run python scripts/run_realtime_demo.py --port 8000
 ```
 
-The script writes a JSON report to `/tmp` by default and can compare against a prior run using `--baseline-json`.
-
-## 🚀 Production Deployment
-
-**Important:** This is a TTS-only service. Whisper transcription is **not** automatically launched. Whisper endpoints (if needed for validation) must be run separately.
-
-### Starting the Server
+For CUDA builds that need FlashAttention outside Docker:
 
 ```bash
-# Recommended: Use the provided script with GPU selection
-CUDA_VISIBLE_DEVICES=2 uv run python scripts/run_realtime_demo.py --port 8000
-
-# Or run the demo directly
-CUDA_VISIBLE_DEVICES=2 uv run python third_party/VibeVoice/demo/vibevoice_realtime_demo.py \
-  --port 8000 \
-  --model_path models/VibeVoice-Realtime-0.5B \
-  --device cuda \
-  --inference_steps 5
+uv sync --extra vibevoice
+uv pip install --no-build-isolation flash-attn
 ```
 
-**Note:** Replace `CUDA_VISIBLE_DEVICES=2` with your available GPU. Check GPU availability with `nvidia-smi`.
+## Server architecture
 
-### Boot Autostart with Lazy Load
+There are now two serving paths rather than one application pretending every adapter is the realtime engine:
 
-To install a systemd service that binds on all interfaces, listens on port `8881`, and defers model initialization until the first speech request:
+1. **Realtime VibeVoice:** `RealtimeDemoAdapter` launches the existing vendored demo and preserves `/stream`, `/web`, and the optimized CUDA path.
+2. **Native adapter API:** Qwen3-TTS and non-realtime adapters run through `runner.api`, which calls the selected adapter directly.
+
+A process binds to one active model. Requests naming another registered model receive HTTP `409` with a command showing how to start the correct instance. This prevents accidental requests from being synthesized by the wrong loaded model.
+
+## Native API endpoints
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /` | Service and endpoint summary |
+| `GET /health` | Backend availability, active source, and load state |
+| `GET /config` | Complete registry plus active model capabilities |
+| `GET /v1/models` | Active OpenAI-style model row |
+| `GET /v1/audio/voices` | Voices/conditioning modes for the active adapter |
+| `POST /v1/audio/speech` | OpenAI-style speech synthesis |
+| `GET /docs` | FastAPI/OpenAPI documentation |
+
+### Qwen request fields
+
+| Field | Type | Description |
+|---|---|---|
+| `model` | string | Active model key or alias |
+| `input` | string | Text to synthesize |
+| `voice` | string | `default`, or a local reference WAV path for Base profiles |
+| `language` | string | `english`, `chinese`, `auto`, and other model-supported language names |
+| `response_format` | string | `wav`, `mp3`, or `opus`; WAV is the native output |
+| `temp` | float | Sampling temperature |
+| `top_k` | integer | Top-k sampling cutoff |
+| `top_p` | float | Nucleus sampling threshold; used by the 4-bit `mlx-audio` backend |
+| `max_tokens` | integer | Maximum generated codec tokens |
+| `repetition_penalty` | float | Used by the 4-bit `mlx-audio` backend |
+| `ref_audio` | string | Absolute/local reference-audio path |
+| `ref_text` | string | Optional reference transcript for 4-bit ICL cloning |
+
+Streaming is not yet exposed by the native Qwen HTTP adapter. A request with `stream: true` is rejected instead of silently returning a buffered response.
+
+## Configuration
+
+### Model source override
+
+The existing argument name is retained for compatibility:
 
 ```bash
-CUDA_VISIBLE_DEVICES=3 HOST=0.0.0.0 PORT=8881 ./scripts/install_systemd_service.sh
-sudo systemctl start vibevoice-realtime.service
+uv run vibevoice-server --model qwen3-tts-mlx-4bit \
+  --model-path /absolute/path/to/local/model
 ```
 
-This exposes the UI at `http://<your-host>:8881/web`, keeps the OpenAI-compatible API under `/v1/...`, and sets `ENABLE_LAZY_LOAD=true` with `ENABLE_STARTUP_WARMUP=false` for fast boot-time startup. Adjust `CUDA_VISIBLE_DEVICES` if you want to pin the service to a different GPU.
-
-### Restarting with New Code
-
-After pulling updates, restart the server to apply changes:
+It can also be an alternate Hugging Face ID for the `mlx-audio` profile:
 
 ```bash
-# Find and kill existing process
-ps aux | grep vibevoice_realtime_demo
-kill <PID>
-
-# Restart with new code
-CUDA_VISIBLE_DEVICES=2 uv run python scripts/run_realtime_demo.py --port 8000
+uv run vibevoice-server --model qwen3-tts-mlx-4bit \
+  --model-path organization/compatible-qwen3-tts-mlx-model
 ```
 
-## 🔧 Recommended Concurrency
+For the Speech Swift 8-bit profile, use `--model-path` only as a Hugging Face model-ID override.
 
-Based on end-to-end benchmarks (TTS + Whisper transcription), the recommended default concurrency is **2 concurrent requests**.
+### Concurrency
 
-**Benchmark Results (RTX 3090, 5 inference steps):**
+MLX generation is serialized internally because model instances are not thread-safe. The API also defaults to one concurrent synthesis request:
 
-| Concurrency | TTS avg/p95 (s) | Whisper avg/p95 (s) | E2E avg (s) | Throughput (req/s) |
-|-------------|-----------------|---------------------|-------------|-------------------|
-| 2 | 5.57 / 9.11 | 0.39 / 0.66 | 5.96 | 0.333 |
-| 4 | 11.15 / 14.55 | 0.43 / 0.82 | 11.58 | 0.324 |
-| 8 | 20.86 / 27.11 | 0.43 / 0.81 | 21.29 | 0.322 |
+```bash
+uv run vibevoice-server --model qwen3-tts-mlx-4bit \
+  --max-concurrent-requests 1
+```
 
-**Key Findings:**
-- TTS is the bottleneck; Whisper adds minimal latency (~0.3-0.4s) regardless of concurrency
-- Throughput plateaus at ~0.32-0.33 req/s beyond 2 concurrent requests
-- Latency increases significantly with higher concurrency due to TTS queueing
-- Single-stream RTF: ~0.39 (2.6x faster than realtime)
-- Recommended max concurrent requests: **2** for optimal latency/throughput balance
+Increasing this value does not create independent model replicas.
 
-## 🎧 Demos
+### Environment variables
 
-All examples generated using **15 inference steps** with text in the voice's native language.
+| Variable | Purpose |
+|---|---|
+| `TTS_MODEL` | Active model used by the Uvicorn factory/reload mode |
+| `MODEL_PATH` | Model source override |
+| `MODEL_DEVICE` | Device override for PyTorch adapters |
+| `MAX_CONCURRENT_REQUESTS` | Native API admission limit |
+| `SPEECH_SWIFT_BIN` | Explicit path to `speech` or legacy `audio` executable |
+| `QWEN3_TTS_MODEL_ID` | Exact 8-bit Speech Swift model-ID override |
+| `QWEN3_TTS_TIMEOUT_SECONDS` | Speech Swift subprocess timeout; default 1800 |
+| `HF_HOME` | Hugging Face cache root |
 
-### English
-| Voice | Audio Example (MP3) |
-| :--- | :--- |
-| **en-Carter_man** | <audio src="docs/demos/en-Carter_man.mp3" controls preload="none"></audio> |
-| **en-Davis_man** | <audio src="docs/demos/en-Davis_man.mp3" controls preload="none"></audio> |
-| **en-Emma_woman** | <audio src="docs/demos/en-Emma_woman.mp3" controls preload="none"></audio> |
-| **en-Frank_man** | <audio src="docs/demos/en-Frank_man.mp3" controls preload="none"></audio> |
-| **en-Grace_woman** | <audio src="docs/demos/en-Grace_woman.mp3" controls preload="none"></audio> |
-| **en-Mike_man** | <audio src="docs/demos/en-Mike_man.mp3" controls preload="none"></audio> |
-| **in-Samuel_man** | <audio src="docs/demos/in-Samuel_man.mp3" controls preload="none"></audio> |
+## Local validation
 
-### Other Languages
-| Language | Voice | Audio Example (MP3) |
-| :--- | :--- | :--- |
-| **German** | de-Spk0_man | <audio src="docs/demos/de-Spk0_man.mp3" controls preload="none"></audio> |
-| **German** | de-Spk1_woman | <audio src="docs/demos/de-Spk1_woman.mp3" controls preload="none"></audio> |
-| **Spanish** | sp-Spk0_woman | <audio src="docs/demos/sp-Spk0_woman.mp3" controls preload="none"></audio> |
-| **Spanish** | sp-Spk1_man | <audio src="docs/demos/sp-Spk1_man.mp3" controls preload="none"></audio> |
-| **French** | fr-Spk0_man | <audio src="docs/demos/fr-Spk0_man.mp3" controls preload="none"></audio> |
-| **French** | fr-Spk1_woman | <audio src="docs/demos/fr-Spk1_woman.mp3" controls preload="none"></audio> |
-| **Italian** | it-Spk0_woman | <audio src="docs/demos/it-Spk0_woman.mp3" controls preload="none"></audio> |
-| **Italian** | it-Spk1_man | <audio src="docs/demos/it-Spk1_man.mp3" controls preload="none"></audio> |
-| **Japanese** | jp-Spk0_man | <audio src="docs/demos/jp-Spk0_man.mp3" controls preload="none"></audio> |
-| **Japanese** | jp-Spk1_woman | <audio src="docs/demos/jp-Spk1_woman.mp3" controls preload="none"></audio> |
-| **Korean** | kr-Spk0_woman | <audio src="docs/demos/kr-Spk0_woman.mp3" controls preload="none"></audio> |
-| **Korean** | kr-Spk1_man | <audio src="docs/demos/kr-Spk1_man.mp3" controls preload="none"></audio> |
-| **Dutch** | nl-Spk0_man | <audio src="docs/demos/nl-Spk0_man.mp3" controls preload="none"></audio> |
-| **Dutch** | nl-Spk1_woman | <audio src="docs/demos/nl-Spk1_woman.mp3" controls preload="none"></audio> |
-| **Polish** | pl-Spk0_man | <audio src="docs/demos/pl-Spk0_man.mp3" controls preload="none"></audio> |
-| **Polish** | pl-Spk1_woman | <audio src="docs/demos/pl-Spk1_woman.mp3" controls preload="none"></audio> |
-| **Portuguese** | pt-Spk0_woman | <audio src="docs/demos/pt-Spk0_woman.mp3" controls preload="none"></audio> |
-| **Portuguese** | pt-Spk1_man | <audio src="docs/demos/pt-Spk1_man.mp3" controls preload="none"></audio> |
+No GitHub Actions workflow is required. Run checks on the target machine:
 
+```bash
+uv sync --extra dev --extra mac        # Apple Silicon
+# uv sync --extra dev --extra vibevoice    # Linux/VibeVoice
+uv run ruff check runner scripts test_runner.py test_macos_mlx.py
+uv run pytest test_macos_mlx.py             # hardware-free Mac integration tests
+# uv run pytest                             # full suite in a VibeVoice environment
+python -m compileall -q runner scripts main.py
+bash -n scripts/bootstrap_uv.sh scripts/bootstrap_macos.sh
+```
 
-## 🏆 Credits & Acknowledgements
+A real synthesis smoke test must run on Apple Silicon because Linux cannot execute MLX/Metal or Speech Swift.
 
-This project stands on the shoulders of giants. Huge thanks to:
+## Docker
 
-- **[Microsoft](https://github.com/microsoft/VibeVoice)**: For releasing the incredible **VibeVoice** model and the original codebase.
-- **[ysharma3501/LavaSR](https://github.com/ysharma3501/LavaSR)**: For the high-quality neural audio super-resolution model.
-- **[groxaxo](https://github.com/groxaxo)**: For the original repository and initial setup.
-- **[Kokoro FastAPI Creators](https://github.com/remsky/Kokoro-FastAPI)**: For inspiration on the FastAPI implementation and structure.
-- **Open Source Community**: For all the tools and libraries that make this possible.
+The Dockerfile remains CUDA-specific and installs the `vibevoice` dependency extra. MLX is an Apple framework and is not supported inside the NVIDIA Linux image.
 
----
+```bash
+docker build -t vibevoice-realtime .
+docker run --gpus all -p 8000:8000 vibevoice-realtime
+```
 
-<div align="center">
-Made with ❤️ for the AI Community
-</div>
+## License and upstream projects
+
+Review the licenses and model cards for the software and model weights you use:
+
+- Microsoft VibeVoice
+- Qwen3-TTS
+- Speech Swift
+- MLX / `mlx-audio`
+- The selected Hugging Face model repository
